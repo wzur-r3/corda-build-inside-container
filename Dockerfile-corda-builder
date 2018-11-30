@@ -1,0 +1,44 @@
+FROM azul/zulu-openjdk:8
+
+# Install all required software
+RUN export DEBIAN_FRONTEND=noninteractive && apt-get -y update \
+  && LC_ALL=C apt-get -y install \
+     git \
+     latexmk \
+     make \
+     python-minimal \
+     python-git \
+     python-jinja2 \
+     python-virtualenv \
+     python-yaml \
+     sudo \
+     texlive-latex-extra \
+     texlive-latex-recommended \
+     texlive-fonts-recommended \
+     unzip \
+     wget \
+  && apt-get -y clean && rm -rf /var/lib/apt/lists/* /tmp/* /var/tmp/*
+
+# get Gradle-3.4
+#ARG GRADLE_VERSION=3.4
+#ARG GRADLE_SHA=72d0cd4dcdd5e3be165eb7cd7bbd25cf8968baf400323d9ab1bba622c3f72205
+## get Gradle-3.4
+ARG GRADLE_VERSION=4.10.1
+ARG GRADLE_SHA=e53ce3a01cf016b5d294eef20977ad4e3c13e761ac1e475f1ffad4c6141a92bd
+RUN set -x && wget --quiet --continue --no-check-certificate --no-cookies --tries 5 \
+      https://services.gradle.org/distributions/gradle-${GRADLE_VERSION}-bin.zip \
+      -O /tmp/gradle.zip \
+  && echo "$GRADLE_SHA  /tmp/gradle.zip" | sha256sum -c - \
+  && mkdir -p /opt/gradle && unzip -o -q -d /opt/gradle /tmp/gradle.zip \
+  && rm /tmp/gradle.zip
+
+ENV GRADLE_HOME=/opt/gradle/gradle-${GRADLE_VERSION}
+ENV PATH="${PATH}:${GRADLE_HOME}/bin"
+
+# job often needs to run ssh or sudo, and ssh or sudo needs an account to run!
+ARG builder_user=builder
+ARG builder_uid=1000
+
+# create an account for ${builder_user} and grant it sudo rights
+RUN useradd --uid ${builder_uid} -m ${builder_user}  \
+ && echo "${builder_user} ALL=NOPASSWD: ALL" >> /etc/sudoers

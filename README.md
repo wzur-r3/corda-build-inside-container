@@ -31,6 +31,12 @@ alternatively, to run a command inside a Docker container:
 ./with-docker-container.sh
 ```
 
+specifically, to run a build for Corda project, go to the checkout out Corda project and:
+
+```bash
+PATH_TO_THIS_PROJECT/corda-builder.sh gradle clean build buildDocs
+```
+
 References
 ----------
 
