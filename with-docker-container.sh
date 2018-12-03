@@ -8,6 +8,7 @@
 #/   -v, --verbose - more verbose output
 #/   -h, --help - this information
 #/   -f, --dockerfile DOCKERFILE - the Dockerfile to build the Docker image from (default is `Dockerfile`)
+#/   -n, --name IMAGE_NAME - the name of generated Docker image from provided Dockerfile (default is the current folder's name)
 #/   -i, --image DOCKER_IMAGE - the Docker image to pull & start the container from, this option cannot be used with -f
 #/   -e, --env VAR_NAME - the name of the environment variable to pass to the executed command
 #/   -s, --shell SHELL - the command line shell to execetute commands with (default is `sh`)
@@ -71,6 +72,7 @@ declare -A SCRIPT_OPTIONS=(
  [help]=h
  [verbose]=v
  [dockerfile:]=f:
+ [name:]=n:
  [image:]=i:
  [env:]=e:
  [shell:]=s:
@@ -94,15 +96,18 @@ declare -a DOCKER_BUILD_ARGS
 declare -a DOCKER_VOLUMES
 
 WORKDIR=$(pwd)
+IMAGENAME=$(basename $(cd "${WORKDIR}" && pwd))
 BUILDER_USER=$(id -un)
 BUILDER_UID=$(id -u)
 BUILDER_GID=$(id -g)
+BUILDER_IMAGE=
 
 while true; do
   case "$1" in
     -v) DEBUG=true; shift ;;
     -f | --dockerfile) DOCKERFILE="$2"; shift; shift ;;
-    -i | --image) DOCKERIMAGE="$2"; shift; shift ;;
+    -n | --name) IMAGENAME="$2"; shift; shift ;;
+    -i | --image) BUILDER_IMAGE="$2"; shift; shift ;;
     -e | --env) EXTRA_ENV+=("$2"); shift; shift ;;
     -s | --shell) DOCKER_SHELL="$2"; shift; shift ;;
     -u | --run-as) BUILDER_USER="$2"; shift; shift ;;
@@ -128,10 +133,10 @@ fi
 #ME=$(cd $(dirname "$0") && pwd)
 #Dockerfile="${ME}/Dockerfile"
 DOCKERCONTEXT=$(cd $(dirname "${DOCKERFILE}") && pwd)
-DOCKERIMAGE=$(basename $(cd "${WORKDIR}" && pwd))
 
 debug "$(declare -p DOCKERFILE)"
-debug "$(declare -p DOCKERIMAGE)"
+debug "$(declare -p IMAGENAME)"
+debug "$(declare -p BUILDER_IMAGE)"
 debug "$(declare -p EXTRA_ENV)"
 debug "$(declare -p DOCKER_SHELL)"
 debug "$(declare -p BUILDER_USER)"
@@ -146,26 +151,29 @@ debug "$(declare -p DOCKERCONTEXT)"
 
 debug "Command: $@"
 
-buildNo=$[$(docker images -qa --filter "label=${DOCKERIMAGE}" | uniq | xargs docker inspect --format '{{ join .RepoTags " " }}' 2>/dev/null | grep latest | cut -f1 -d' ' | cut -f2 -d:) + 1]
+if [ "x${BUILDER_IMAGE}" = x ]
+then
+  buildNo=$[$(docker images -qa --filter "label=${IMAGENAME}" | uniq | xargs docker inspect --format '{{ join .RepoTags " " }}' 2>/dev/null | grep latest | cut -f1 -d' ' | cut -f2 -d:) + 1]
+  debug "$(declare -p buildNo)"
 
-debug "$(declare -p buildNo)"
-
-# build an image from provided Dockerfile
-docker build \
-  -t ${DOCKERIMAGE}:${buildNo} \
-  -t ${DOCKERIMAGE}:latest \
-  "${DOCKER_BUILD_ARGS[@]}" \
-  --force-rm \
-  --label="${DOCKERIMAGE}=${buildNo}" \
-  -f "${DOCKERFILE}" \
-  "${DOCKERCONTEXT}"
+  # build an image from provided Dockerfile
+  docker build \
+    -t ${IMAGENAME}:${buildNo} \
+    -t ${IMAGENAME}:latest \
+    "${DOCKER_BUILD_ARGS[@]}" \
+    --force-rm \
+    --label="${IMAGENAME}=${buildNo}" \
+    -f "${DOCKERFILE}" \
+    "${DOCKERCONTEXT}"
+  BUILDER_IMAGE="${IMAGENAME}:${buildNo}"
+fi
 
 # prepare Shell environments to be passed to the container
 tempFile=$(mktemp)
 # dump all exported Shell variables
 env >"${tempFile}"
 # add variable defined in the image
-docker run -t --rm --user "${BUILDER_UID}:${BUILDER_GID}" "${DOCKERIMAGE}:${buildNo}" env >>"${tempFile}"
+docker run -t --rm --user "${BUILDER_UID}:${BUILDER_GID}" "${BUILDER_IMAGE}" env >>"${tempFile}"
 # add variables defined in the command line
 for pair in "${EXTRA_ENV[@]}"
 do
@@ -179,7 +187,7 @@ containerId=$(docker run -t -d \
   -v "${WORKDIR}:${WORKDIR}" \
   -w "${WORKDIR}" \
   --env-file="${tempFile}" \
-  --entrypoint /bin/cat "${DOCKERIMAGE}:${buildNo}")
+  --entrypoint /bin/cat "${BUILDER_IMAGE}")
 
 # create a function to properly clean up after exit
 trap 'docker rm -f ${containerId} --volumes 2>/dev/null || true; rm -f "${tempFile}"' EXIT
@@ -205,5 +213,5 @@ if is_debug
 then
   debug "Leaving previous versions of the builder images intact"
 else
-  docker images -qa --filter "label=${DOCKERIMAGE}" | uniq | xargs docker inspect --format '{{ join .RepoTags " " }}' 2>/dev/null | grep -v latest | xargs docker rmi 2>/dev/null || true
+  docker images -qa --filter "label=${IMAGENAME}" | uniq | xargs docker inspect --format '{{ join .RepoTags " " }}' 2>/dev/null | grep -v latest | xargs docker rmi 2>/dev/null || true
 fi
