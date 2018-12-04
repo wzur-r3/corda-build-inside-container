@@ -19,6 +19,14 @@ RUN export DEBIAN_FRONTEND=noninteractive && apt-get -y update \
      wget \
   && apt-get -y clean && rm -rf /var/lib/apt/lists/* /tmp/* /var/tmp/*
 
+# Add JavaFX to Zulu JDK
+RUN export DEBIAN_FRONTEND=noninteractive && apt-get -y update \
+  && LC_ALL=C apt-get -y install \
+     libopenjfx-java \
+  && apt-get -y clean && rm -rf /var/lib/apt/lists/* /tmp/* /var/tmp/* \
+  && cd /usr/lib/jvm/zulu-8-amd64/jre/lib/ext && ln -sf ../../../../../../share/java/openjfx/jre/lib/ext/jfxrt.jar
+
+
 # get Gradle-3.4
 #ARG GRADLE_VERSION=3.4
 #ARG GRADLE_SHA=72d0cd4dcdd5e3be165eb7cd7bbd25cf8968baf400323d9ab1bba622c3f72205
