@@ -27,10 +27,9 @@ RUN export DEBIAN_FRONTEND=noninteractive && apt-get -y update \
   && cd /usr/lib/jvm/zulu-8-amd64/jre/lib/ext && ln -sf ../../../../../../share/java/openjfx/jre/lib/ext/jfxrt.jar
 
 
-# get Gradle-3.4
-#ARG GRADLE_VERSION=3.4
-#ARG GRADLE_SHA=72d0cd4dcdd5e3be165eb7cd7bbd25cf8968baf400323d9ab1bba622c3f72205
-## get Gradle-3.4
+## get Gradle-4.10.1
+# It actually allows to get any Gradle release as long as the SHA256 is provided with the version.
+# Just use `--build-arg` with `docker build`
 ARG GRADLE_VERSION=4.10.1
 ARG GRADLE_SHA=e53ce3a01cf016b5d294eef20977ad4e3c13e761ac1e475f1ffad4c6141a92bd
 RUN set -x && wget --quiet --continue --no-check-certificate --no-cookies --tries 5 \
