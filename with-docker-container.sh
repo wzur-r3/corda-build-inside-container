@@ -90,10 +90,10 @@ if [ $? != 0 ] ; then error "Failed parsing options." ; exit 1 ; fi
 eval set -- "$OPTS"
 
 DOCKERFILE=Dockerfile
-declare -a EXTRA_ENV
+declare -a EXTRA_ENV=()
 DOCKER_SHELL=sh
-declare -a DOCKER_BUILD_ARGS
-declare -a DOCKER_VOLUMES
+declare -a DOCKER_BUILD_ARGS=()
+declare -a DOCKER_VOLUMES=()
 
 WORKDIR=$(pwd)
 IMAGENAME=$(basename $(cd "${WORKDIR}" && pwd))
@@ -101,6 +101,9 @@ BUILDER_USER=$(id -un)
 BUILDER_UID=$(id -u)
 BUILDER_GID=$(id -g)
 BUILDER_IMAGE=
+
+HAVE_TTY=true
+tty -s || HAVE_TTY=false
 
 while true; do
   case "$1" in
@@ -160,7 +163,7 @@ then
   docker build \
     -t ${IMAGENAME}:${buildNo} \
     -t ${IMAGENAME}:latest \
-    "${DOCKER_BUILD_ARGS[@]}" \
+    ${DOCKER_BUILD_ARGS[0]+"${DOCKER_BUILD_ARGS[@]}"} \
     --force-rm \
     --label="${IMAGENAME}=${buildNo}" \
     -f "${DOCKERFILE}" \
@@ -173,9 +176,9 @@ tempFile=$(mktemp)
 # dump all exported Shell variables
 env >"${tempFile}"
 # add variable defined in the image
-docker run -t --rm --user "${BUILDER_UID}:${BUILDER_GID}" "${BUILDER_IMAGE}" env >>"${tempFile}"
+docker run --tty="${HAVE_TTY}" --rm --user "${BUILDER_UID}:${BUILDER_GID}" "${BUILDER_IMAGE}" env >>"${tempFile}"
 # add variables defined in the command line
-for pair in "${EXTRA_ENV[@]}"
+for pair in ${EXTRA_ENV[0]+"${EXTRA_ENV[@]}"}
 do
   echo "${pair}" >>"${tempFile}"
 done
@@ -183,7 +186,7 @@ done
 # start a container from created image
 containerId=$(docker run -t -d \
   --user `id -u`:`id -g` \
-  "${DOCKER_VOLUMES[@]}" \
+  ${DOCKER_VOLUMES[0]+"${DOCKER_VOLUMES[@]}"} \
   -v "${WORKDIR}:${WORKDIR}" \
   -w "${WORKDIR}" \
   --env-file="${tempFile}" \
@@ -207,7 +210,7 @@ docker exec -i -u 0:0 "${containerId}" sh -c "usermod -a -G '${BUILDER_GID}' '${
 
 echo ${1+"$@"} | docker exec -u "${BUILDER_USER}" -i ${containerId} sh -c 'cat - >/tmp/command.sh && chmod a+x /tmp/command.sh'
 
-docker exec -u "${BUILDER_USER}:${BUILDER_GID}" -it ${containerId} "${DOCKER_SHELL}" /tmp/command.sh
+docker exec -u "${BUILDER_USER}:${BUILDER_GID}" -i --tty="${HAVE_TTY}" ${containerId} "${DOCKER_SHELL}" /tmp/command.sh
 
 if is_debug
 then
