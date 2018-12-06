@@ -4,6 +4,7 @@ set -eu -o pipefail
 
 $(dirname "$0")/with-docker-container.sh \
   --shell bash \
+  --name corda-docs-builder \
   --dockerfile=$(dirname "$0")/Dockerfile-corda-builder \
   --build-arg=builder_user=$(id -un) \
   --build-arg=builder_uid=$(id -u) \
