@@ -211,7 +211,7 @@ docker exec -i -u 0:0 "${containerId}" sh -c "getent group '${BUILDER_GID}' >/de
 # make sure requested user exists, if not - create it
 docker exec -i -u 0:0 "${containerId}" sh -c "getent passwd '${BUILDER_USER}' >/dev/null 2>&1 || useradd --uid '${BUILDER_UID}' -m '${BUILDER_USER}' 2>/dev/null"
 # make sure user is a member of requested group
-docker exec -i -u 0:0 "${containerId}" sh -c "usermod -a -G '${BUILDER_GID}' '${BUILDER_USER}' || bash"
+docker exec -i -u 0:0 "${containerId}" sh -c "usermod -a -G '${BUILDER_GID}' '${BUILDER_USER}'"
 
 echo ${1+"$@"} | docker exec -u "${BUILDER_USER}" -i ${containerId} sh -c 'cat - >/tmp/command.sh && chmod a+x /tmp/command.sh'
 
