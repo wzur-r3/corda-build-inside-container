@@ -11,6 +11,7 @@
 #/   -n, --name IMAGE_NAME - the name of generated Docker image from provided Dockerfile (default is the current folder's name)
 #/   -i, --image DOCKER_IMAGE - the Docker image to pull & start the container from, this option cannot be used with -f
 #/   -e, --env VAR_NAME - the name of the environment variable to pass to the executed command
+#/   --unset-env VAR_NAME - the name of the environment variable to unset before executing command
 #/   -s, --shell SHELL - the command line shell to execetute commands with (default is `sh`)
 #/   -u, --run-as USER_NAME - the name of an user the command should be executed as (default is the user who starts this scripts)
 #/   --uid USER_ID - the system ID the user the command should be executed as (default is the ID of the user who starts this scripts)
@@ -75,6 +76,7 @@ declare -A SCRIPT_OPTIONS=(
  [name:]=n:
  [image:]=i:
  [env:]=e:
+ [unset-env:]=
  [shell:]=s:
  [run-as:]=u:
  [build-arg:]=
@@ -91,6 +93,7 @@ eval set -- "$OPTS"
 
 DOCKERFILE=Dockerfile
 declare -a EXTRA_ENV=()
+declare -a UNSET_ENV=()
 DOCKER_SHELL=sh
 declare -a DOCKER_BUILD_ARGS=()
 declare -a DOCKER_VOLUMES=()
@@ -112,6 +115,7 @@ while true; do
     -n | --name) IMAGENAME="$2"; shift; shift ;;
     -i | --image) BUILDER_IMAGE="$2"; shift; shift ;;
     -e | --env) EXTRA_ENV+=("$2"); shift; shift ;;
+    --unset-env) UNSET_ENV+=("--unset=$2"); shift; shift ;;
     -s | --shell) DOCKER_SHELL="$2"; shift; shift ;;
     -u | --run-as) BUILDER_USER="$2"; shift; shift ;;
     --build-arg) DOCKER_BUILD_ARGS+=("--build-arg=$2"); shift; shift ;;
@@ -141,6 +145,7 @@ debug "$(declare -p DOCKERFILE)"
 debug "$(declare -p IMAGENAME)"
 debug "$(declare -p BUILDER_IMAGE)"
 debug "$(declare -p EXTRA_ENV)"
+debug "$(declare -p UNSET_ENV)"
 debug "$(declare -p DOCKER_SHELL)"
 debug "$(declare -p BUILDER_USER)"
 debug "$(declare -p DOCKER_BUILD_ARGS)"
@@ -174,7 +179,7 @@ fi
 # prepare Shell environments to be passed to the container
 tempFile=$(mktemp)
 # dump all exported Shell variables
-env >"${tempFile}"
+env ${UNSET_ENV[0]+"${UNSET_ENV[@]}"} >"${tempFile}"
 # add variable defined in the image
 docker run --tty="${HAVE_TTY}" --rm --user "${BUILDER_UID}:${BUILDER_GID}" "${BUILDER_IMAGE}" env >>"${tempFile}"
 # add variables defined in the command line
